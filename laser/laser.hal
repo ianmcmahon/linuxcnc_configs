@@ -154,7 +154,7 @@ net machine-enable  => hm2_5i25.0.7i76.0.0.output-01
 net coolant-pump => hm2_5i25.0.7i76.0.0.output-02
 # drives enable with machine enable
 net machine-enable => hm2_5i25.0.7i76.0.0.output-07
-net air-assist 	 => hm2_5i25.0.7i76.0.0.output-15
+net air-assist 	 => hm2_5i25.0.7i76.0.0.output-06
 net laser-power-pct  => hm2_5i25.0.7i76.0.0.spinout
 net laser-interlock  => hm2_5i25.0.7i76.0.0.spinena
 
