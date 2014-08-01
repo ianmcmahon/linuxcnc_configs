@@ -1,0 +1,205 @@
+
+# ###################################
+# Core EMC/HAL Loads
+# ###################################
+
+loadrt gentrivkins coordinates=XYY
+
+loadrt threads name1=laser-thread period1=[LASER]PULSE_THREAD_DURATION
+loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES
+loadrt hostmot2
+loadrt hm2_pci config="num_stepgens=3 num_encoders=0 num_pwmgens=0"
+loadrt and2 count=1
+#loadrt debounce cfg=6
+loadrt laserfreq
+
+
+# ################################################
+# THREADS
+# ################################################
+
+addf hm2_5i25.0.read         servo-thread
+addf motion-command-handler  servo-thread
+addf motion-controller       servo-thread
+addf hm2_5i25.0.write        servo-thread
+addf hm2_5i25.0.pet_watchdog servo-thread
+addf and2.0 		     servo-thread
+#addf debounce.0 servo-thread
+addf laserfreq.0.make-pulses laser-thread
+addf laserfreq.0.update      servo-thread
+
+
+
+
+# ################
+# X [0] Axis
+# ################
+
+# Joint 0 (X) is on stepgen 02
+
+# axis enable chain
+newsig emcmot.00.enable bit
+sets emcmot.00.enable FALSE
+
+net emcmot.00.enable <= joint.0.amp-enable-out
+net emcmot.00.enable => hm2_5i25.0.stepgen.02.enable
+
+# limits
+net x-home hm2_5i25.0.7i76.0.0.input-02-not => joint.0.home-sw-in
+
+# position command and feedback
+net emcmot.00.pos-cmd <= joint.0.motor-pos-cmd
+net emcmot.00.pos-cmd => hm2_5i25.0.stepgen.02.position-cmd
+
+net motor.00.pos-fb <= hm2_5i25.0.stepgen.02.position-fb
+net motor.00.pos-fb => joint.0.motor-pos-fb
+
+# timing parameters
+setp hm2_5i25.0.stepgen.02.dirsetup        [JOINT_0]DIRSETUP
+setp hm2_5i25.0.stepgen.02.dirhold         [JOINT_0]DIRHOLD
+setp hm2_5i25.0.stepgen.02.steplen         [JOINT_0]STEPLEN
+setp hm2_5i25.0.stepgen.02.stepspace       [JOINT_0]STEPSPACE
+
+setp hm2_5i25.0.stepgen.02.position-scale  [JOINT_0]SCALE
+setp hm2_5i25.0.stepgen.02.maxvel          [JOINT_0]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.02.maxaccel        [JOINT_0]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.02.step_type       0
+
+# ################
+# Y [1] Axis
+# ################
+
+# Joint 1 (Y, left motor) is on stepgen 01
+
+# axis enable chain
+newsig emcmot.01.enable bit
+sets emcmot.01.enable FALSE
+
+net emcmot.01.enable <= joint.1.amp-enable-out
+net emcmot.01.enable => hm2_5i25.0.stepgen.01.enable
+
+# limits
+net y1-home hm2_5i25.0.7i76.0.0.input-00-not => joint.1.home-sw-in
+
+# position command and feedback
+net emcmot.01.pos-cmd <= joint.1.motor-pos-cmd
+net emcmot.01.pos-cmd => hm2_5i25.0.stepgen.01.position-cmd
+
+net motor.01.pos-fb <= hm2_5i25.0.stepgen.01.position-fb
+net motor.01.pos-fb => joint.1.motor-pos-fb
+
+
+# Y axis timing parameters
+setp hm2_5i25.0.stepgen.01.dirsetup        [JOINT_1]DIRSETUP
+setp hm2_5i25.0.stepgen.01.dirhold         [JOINT_1]DIRHOLD
+setp hm2_5i25.0.stepgen.01.steplen         [JOINT_1]STEPLEN
+setp hm2_5i25.0.stepgen.01.stepspace       [JOINT_1]STEPSPACE
+
+setp hm2_5i25.0.stepgen.01.position-scale  [JOINT_1]SCALE
+setp hm2_5i25.0.stepgen.01.maxvel          [JOINT_1]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.01.maxaccel        [JOINT_1]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.01.step_type       0
+
+# ################
+# Y [2] Axis
+# ################
+
+# Joint 2 (Y, right motor) is on stepgen 00
+
+# axis enable chain
+newsig emcmot.02.enable bit
+sets emcmot.02.enable FALSE
+
+net emcmot.02.enable <= joint.2.amp-enable-out
+net emcmot.02.enable => hm2_5i25.0.stepgen.00.enable
+
+# limits
+net y2-home hm2_5i25.0.7i76.0.0.input-01-not => joint.2.home-sw-in
+
+# position command and feedback
+net emcmot.02.pos-cmd <= joint.2.motor-pos-cmd
+net emcmot.02.pos-cmd => hm2_5i25.0.stepgen.00.position-cmd
+
+net motor.02.pos-fb <= hm2_5i25.0.stepgen.00.position-fb
+net motor.02.pos-fb => joint.2.motor-pos-fb
+
+
+# Y axis timing parameters
+setp hm2_5i25.0.stepgen.00.dirsetup        [JOINT_2]DIRSETUP
+setp hm2_5i25.0.stepgen.00.dirhold         [JOINT_2]DIRHOLD
+setp hm2_5i25.0.stepgen.00.steplen         [JOINT_2]STEPLEN
+setp hm2_5i25.0.stepgen.00.stepspace       [JOINT_2]STEPSPACE
+
+setp hm2_5i25.0.stepgen.00.position-scale  [JOINT_2]SCALE
+setp hm2_5i25.0.stepgen.00.maxvel          [JOINT_2]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.00.maxaccel        [JOINT_2]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.00.step_type       0
+
+
+# laser pulser
+
+setp laserfreq.0.duration [LASER]PULSED_CUT_DURATION
+setp laserfreq.0.min-off-duration [LASER]PULSED_CUT_CONTINUOUS
+
+net current-vel motion.current-vel => laserfreq.0.velocity
+net laser-freq  motion.spindle-speed-out => laserfreq.0.pulse-per-unit
+setp laserfreq.0.enable 1
+net laser-pulsed <= laserfreq.0.pulse
+
+
+# enable 48V power when not in estop
+net estop-loop   => hm2_5i25.0.7i76.0.0.output-00
+# laser power supply enables on machine-enable
+net machine-enable  => hm2_5i25.0.7i76.0.0.output-01
+net coolant-pump => hm2_5i25.0.7i76.0.0.output-02
+# drives enable with machine enable
+net machine-enable => hm2_5i25.0.7i76.0.0.output-07
+net air-assist 	 => hm2_5i25.0.7i76.0.0.output-15
+net laser-power-pct  => hm2_5i25.0.7i76.0.0.spinout
+net laser-interlock  => hm2_5i25.0.7i76.0.0.spinena
+
+net coolant-pump    => and2.0.in0
+net air-assist	    => and2.0.in1
+net laser-interlock <= and2.0.out
+
+net laser-power-pct <= motion.analog-out-00
+
+# M3/M5, not realtime, just controls whether we CAN fire the laser (independent of the interlock)
+net laser-master <= motion.spindle-on
+
+# M62/63 coordinated or M64/65 immediate firing
+net laser-dout   <= motion.digital-out-00
+
+loadrt lut5 names=laser-final-lut
+addf laser-final-lut laser-thread
+
+# final laser equation:  
+# this will change when rastering comes in, and when magic-z is added
+# for now, it's laser-master & (laser-dout & laser-pulsed)
+
+# this is just a three-bit and
+setp laser-final-lut.function 0x80 
+net laser-master 	=> laser-final-lut.in-0
+net laser-dout		=> laser-final-lut.in-1
+net laser-pulsed 	=> laser-final-lut.in-2
+net laser-final <= laser-final-lut.out
+net laser-final   => hm2_5i25.0.7i76.0.0.spindir
+
+
+net coolant-pump => iocontrol.0.coolant-flood
+net air-assist   => iocontrol.0.coolant-mist
+
+# ##################################################
+# Standard I/O Block - EStop, Etc
+# ##################################################
+
+# create a signal for the estop loopback
+net estop-loop iocontrol.0.user-enable-out => iocontrol.0.emc-enable-in
+
+
+# enable drives and laser psu on machine-enable
+net machine-enable motion.motion-enabled 
+
+# create signals for tool loading loopback
+#net tool-prep-loop iocontrol.0.tool-prepare => iocontrol.0.tool-prepared
+#net tool-change-loop iocontrol.0.tool-change => iocontrol.0.tool-changed
