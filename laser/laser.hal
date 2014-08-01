@@ -136,15 +136,6 @@ setp hm2_5i25.0.stepgen.00.maxaccel        [JOINT_2]STEPGEN_MAX_ACC
 setp hm2_5i25.0.stepgen.00.step_type       0
 
 
-# laser pulser
-
-setp laserfreq.0.duration [LASER]PULSED_CUT_DURATION
-setp laserfreq.0.min-off-duration [LASER]PULSED_CUT_CONTINUOUS
-
-net current-vel motion.current-vel => laserfreq.0.velocity
-net laser-freq  motion.spindle-speed-out => laserfreq.0.pulse-per-unit
-setp laserfreq.0.enable 1
-net laser-pulsed <= laserfreq.0.pulse
 
 
 # enable 48V power when not in estop
@@ -164,27 +155,93 @@ net laser-interlock <= and2.0.out
 
 net laser-power-pct <= motion.analog-out-00
 
+loadrt comp names=raster-pos-gt-comp
+loadrt lut5 names=laser-final-lut,raster-read-lut,raster-fire-lut
+
+loadrt streamer depth=256 cfg=bbf
+
+# the order of addf determines order of execution. 
+# order these so inputs cascade correctly to outputs
+addf raster-pos-gt-comp laser-thread
+addf raster-read-lut    laser-thread
+addf streamer.0    	laser-thread
+addf raster-fire-lut	laser-thread
+addf laser-final-lut 	laser-thread
+
+net raster-fire  <= streamer.0.pin.0
+net raster-rev	 <= streamer.0.pin.1
+net raster-pos 	 <= streamer.0.pin.2
+net raster-empty <= streamer.0.empty
+net raster-read  => streamer.0.enable
+
+# need to get the actual X position in current coord system
+loadrt sum2 names=motion-offset-add
+
+addf motion-offset-add servo-thread
+setp motion-offset-add.gain1 -1
+net motor.00.pos-fb => motion-offset-add.in0
+net motor.00.offset joint.0.motor-offset => motion-offset-add.in1
+net raster-pos-fb <= motion-offset-add.out
+
+
+# has the raster reached the target?
+# raster-pos-gt := raster-pos-fb > raster-pos
+net raster-pos 	  => raster-pos-gt-comp.in0
+net raster-pos-fb => raster-pos-gt-comp.in1
+net raster-pos-gt <= raster-pos-gt-comp.out
+
+# equation for reading the stream:
+# flush when not running (M5 / laser-master off)
+# when laser position passes the target position in the right direction
+# 
+# raster-read := (~laser-master | (raster-pos-gt ^ raster-rev))
+setp raster-read-lut.function 0x3ff33ff3
+net raster-empty 	=> raster-read-lut.in-0
+net laser-master	=> raster-read-lut.in-1
+net raster-pos-gt	=> raster-read-lut.in-2
+net raster-rev		=> raster-read-lut.in-3
+net raster-read		<= raster-read-lut.out
+
+# equation for firing the laser
+# never fire when empty (underflow or job finished)
+# fire when raster-fire enabled
+#
+# laser-raster := ~raster-empty & raster-fire
+setp raster-fire-lut.function 0x44444444
+net raster-empty => raster-fire-lut.in-0
+net raster-fire  => raster-fire-lut.in-1
+net laser-raster <= raster-fire-lut.out
+
+# laser pulser
+
+setp laserfreq.0.duration [LASER]PULSED_CUT_DURATION
+setp laserfreq.0.min-off-duration [LASER]PULSED_CUT_CONTINUOUS
+
+net current-vel motion.current-vel => laserfreq.0.velocity
+net laser-freq  motion.spindle-speed-out => laserfreq.0.pulse-per-unit
+setp laserfreq.0.enable 1
+net laser-pulsed <= laserfreq.0.pulse
+
 # M3/M5, not realtime, just controls whether we CAN fire the laser (independent of the interlock)
 net laser-master <= motion.spindle-on
 
 # M62/63 coordinated or M64/65 immediate firing
 net laser-dout   <= motion.digital-out-00
 
-loadrt lut5 names=laser-final-lut
-addf laser-final-lut laser-thread
 
 # final laser equation:  
-# this will change when rastering comes in, and when magic-z is added
-# for now, it's laser-master & (laser-dout & laser-pulsed)
+# this will change if/when magic-z is added
+# for now, it's laser-master & (laser-raster | (laser-dout & laser-pulsed))
 
-# this is just a three-bit and
-setp laser-final-lut.function 0x80 
+# lut5.py calculates this... I hope it's right! :D
+setp laser-final-lut.function 0xaa80aa80
 net laser-master 	=> laser-final-lut.in-0
 net laser-dout		=> laser-final-lut.in-1
 net laser-pulsed 	=> laser-final-lut.in-2
-net laser-final <= laser-final-lut.out
-net laser-final   => hm2_5i25.0.7i76.0.0.spindir
+net laser-raster	=> laser-final-lut.in-3
+net laser-final  	<= laser-final-lut.out
 
+net laser-final   	=> hm2_5i25.0.7i76.0.0.spindir
 
 net coolant-pump => iocontrol.0.coolant-flood
 net air-assist   => iocontrol.0.coolant-mist
