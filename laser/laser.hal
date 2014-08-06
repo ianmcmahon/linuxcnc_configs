@@ -10,6 +10,7 @@ loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AX
 loadrt hostmot2
 loadrt hm2_pci config="num_stepgens=3 num_encoders=0 num_pwmgens=0"
 loadrt and2 count=1
+loadrt or2 count=2
 #loadrt debounce cfg=6
 loadrt laserfreq
 
@@ -24,6 +25,8 @@ addf motion-controller       servo-thread
 addf hm2_5i25.0.write        servo-thread
 addf hm2_5i25.0.pet_watchdog servo-thread
 addf and2.0 		     servo-thread
+addf or2.0		     servo-thread
+addf or2.1		     servo-thread
 #addf debounce.0 servo-thread
 addf laserfreq.0.make-pulses laser-thread
 addf laserfreq.0.update      servo-thread
@@ -139,13 +142,14 @@ setp hm2_5i25.0.stepgen.00.step_type       0
 
 
 # enable 48V power when not in estop
-net estop-loop   => hm2_5i25.0.7i76.0.0.output-00
+net estop-loop       => hm2_5i25.0.7i76.0.0.output-00
 # laser power supply enables on machine-enable
-net machine-enable  => hm2_5i25.0.7i76.0.0.output-01
-net coolant-pump => hm2_5i25.0.7i76.0.0.output-02
+net machine-enable   => hm2_5i25.0.7i76.0.0.output-01
+net coolant-pump     => hm2_5i25.0.7i76.0.0.output-02
+net exhaust-blower   => hm2_5i25.0.7i76.0.0.output-03 
+net air-assist 	     => hm2_5i25.0.7i76.0.0.output-06
 # drives enable with machine enable
-net machine-enable => hm2_5i25.0.7i76.0.0.output-07
-net air-assist 	 => hm2_5i25.0.7i76.0.0.output-06
+net machine-enable   => hm2_5i25.0.7i76.0.0.output-07
 net laser-power-pct  => hm2_5i25.0.7i76.0.0.spinout
 net laser-interlock  => hm2_5i25.0.7i76.0.0.spinena
 
@@ -225,8 +229,20 @@ net laser-pulsed <= laserfreq.0.pulse
 # M3/M5, not realtime, just controls whether we CAN fire the laser (independent of the interlock)
 net laser-master <= motion.spindle-on
 
+
+# wire coolant-pump and air-assist to come on with laser-master
+net laser-master => or2.0.in0
+setp or2.0.in1 0
+net coolant-pump <= or2.0.out 
+
+net laser-master => or2.1.in0
+setp or2.1.in1 0
+net air-assist <= or2.1.out 
+
 # M62/63 coordinated or M64/65 immediate firing
 net laser-dout   <= motion.digital-out-00
+
+net exhaust-blower <= motion.digital-out-01
 
 
 # final laser equation:  
@@ -243,8 +259,11 @@ net laser-final  	<= laser-final-lut.out
 
 net laser-final   	=> hm2_5i25.0.7i76.0.0.spindir
 
-net coolant-pump => iocontrol.0.coolant-flood
-net air-assist   => iocontrol.0.coolant-mist
+
+# I used to have these attached to coolant pins for M8/M7 control, but I'm migrating
+# them to be controlled directly by laser master enable
+#net coolant-pump => iocontrol.0.coolant-flood
+#net air-assist   => iocontrol.0.coolant-mist
 
 # ##################################################
 # Standard I/O Block - EStop, Etc
