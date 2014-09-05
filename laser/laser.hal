@@ -150,14 +150,36 @@ net exhaust-blower   => hm2_5i25.0.7i76.0.0.output-03
 net air-assist 	     => hm2_5i25.0.7i76.0.0.output-06
 # drives enable with machine enable
 net machine-enable   => hm2_5i25.0.7i76.0.0.output-07
-net laser-power-pct  => hm2_5i25.0.7i76.0.0.spinout
 net laser-interlock  => hm2_5i25.0.7i76.0.0.spinena
 
 net coolant-pump    => and2.0.in0
 net air-assist	    => and2.0.in1
 net laser-interlock <= and2.0.out
 
-net laser-power-pct <= motion.analog-out-00
+loadrt scale names=current-scale
+loadrt limit1 names=current-limit
+addf current-scale servo-thread
+addf current-limit servo-thread
+
+# This value is the actual percentage of 0V to 5V that the psu sees
+# These numbers are based on 100W RECI tube, and a lightobject power supply which is nominally 38mA max
+# Tube is 100W nominally at 28mA, 120W peak at 30mA.
+#
+# minimum laser fire value is 25%, which produces 8.2mA current 
+# 52.8% produces 26mA
+# 57%   produces 28mA
+# 61.2% produces 30mA
+net laser-current-pct current-scale.out => hm2_5i25.0.7i76.0.0.spinout
+
+setp current-scale.gain 1.66055
+setp current-scale.offset 11.3834862
+
+setp current-limit.min 8.2
+setp current-limit.max 30
+
+net laser-current current-scale.in <= current-limit.out
+
+net laser-current-cmd current-limit.in <= motion.analog-out-00
 
 loadrt comp names=raster-pos-gt-comp
 loadrt lut5 names=laser-final-lut,raster-read-lut,raster-fire-lut
