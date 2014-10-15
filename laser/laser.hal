@@ -10,7 +10,7 @@ loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AX
 loadrt hostmot2
 loadrt hm2_pci config="num_stepgens=3 num_encoders=0 num_pwmgens=0"
 loadrt and2 count=1
-loadrt or2 count=2
+loadrt or2 count=3
 #loadrt debounce cfg=6
 loadrt laserfreq
 
@@ -27,6 +27,7 @@ addf hm2_5i25.0.pet_watchdog servo-thread
 addf and2.0 		     servo-thread
 addf or2.0		     servo-thread
 addf or2.1		     servo-thread
+addf or2.2		     servo-thread
 #addf debounce.0 servo-thread
 addf laserfreq.0.make-pulses laser-thread
 addf laserfreq.0.update      servo-thread
@@ -261,22 +262,27 @@ net laser-master => or2.1.in0
 setp or2.1.in1 0
 net air-assist <= or2.1.out 
 
+# TODO:  hook up an input to an or component, and make laser-continuous be the OR of the laser-test pin and the digital-out-02 continuous fire pin
+
 # M62/63 coordinated or M64/65 immediate firing
 net laser-dout   <= motion.digital-out-00
 
 net exhaust-blower <= motion.digital-out-01
 
+net laser-continuous <= motion.digital-out-02
 
 # final laser equation:  
 # this will change if/when magic-z is added
-# for now, it's laser-master & (laser-raster | (laser-dout & laser-pulsed))
+# for now, it's laser-master & (laser-continuous | laser-raster | (laser-dout & laser-pulsed))
 
 # lut5.py calculates this... I hope it's right! :D
-setp laser-final-lut.function 0xaa80aa80
+setp laser-final-lut.function 0xaaaaaa80
+#setp laser-final-lut.function 0xaa80aa80  this was before I added the laser-continous signal
 net laser-master 	=> laser-final-lut.in-0
 net laser-dout		=> laser-final-lut.in-1
 net laser-pulsed 	=> laser-final-lut.in-2
 net laser-raster	=> laser-final-lut.in-3
+net laser-continuous	=> laser-final-lut.in-4
 net laser-final  	<= laser-final-lut.out
 
 net laser-final   	=> hm2_5i25.0.7i76.0.0.spindir
