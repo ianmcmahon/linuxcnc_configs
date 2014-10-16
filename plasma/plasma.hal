@@ -1,0 +1,262 @@
+
+# ###################################
+# Core EMC/HAL Loads
+# ###################################
+
+loadrt gentrivkins coordinates=XYZY
+
+loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES
+loadrt hostmot2
+loadrt hm2_pci config="num_stepgens=5 num_encoders=2 num_pwmgens=1"
+#loadrt thcud
+loadrt thc
+loadrt debounce cfg=5
+
+
+
+# ################################################
+# THREADS
+# ################################################
+
+addf hm2_5i25.0.read         servo-thread
+addf motion-command-handler               servo-thread
+addf motion-controller                    servo-thread
+# revel in the free time here from not having to run PID 
+addf hm2_5i25.0.write        servo-thread
+addf hm2_5i25.0.pet_watchdog servo-thread
+#addf thcud servo-thread
+addf thc servo-thread
+addf debounce.0 servo-thread
+
+
+#####################
+# THC pinouts
+#####################
+
+net arc-ok			<= hm2_5i25.0.gpio.029.in_not		# P3-11
+
+setp hm2_5i25.0.gpio.000.is_output TRUE   
+
+# thcad encoder is 13, 14, 15
+
+#net arc-ok			=> thcud.arc-ok
+#net thc-up			=> thcud.torch-up
+#net thc-down		=> thcud.torch-down
+
+net torch-on <= motion.spindle-on
+
+net torch-on		=> hm2_5i25.0.gpio.033.out			# P3-17
+setp hm2_5i25.0.gpio.033.is_output TRUE
+setp hm2_5i25.0.gpio.033.invert_output TRUE
+net torch-on      => thc.torch-on
+net arc-ok			=> thc.arc-ok
+
+net thc-cur-vel thc.current-vel <= motion.current-vel
+net thc-req-vel thc.requested-vel <= motion.requested-vel
+
+# I can interact with arc-ok signal using M66 P0 
+net arc-ok => motion.digital-in-00
+
+net torch-probe-in  debounce.0.4.in  <= hm2_5i25.0.gpio.023.in_not 
+net torch-probe-out debounce.0.4.out => motion.probe-input
+
+# thcad velocity 119k at 0V
+# 5V 540k
+# 421k per 5V = 84.2k/V
+setp hm2_5i25.0.encoder.01.counter-mode 1
+setp thc.scale-offset 119000
+setp thc.vel-scale 0.00059382425
+setp thc.correction-vel 0.00005
+net thc-vel-in hm2_5i25.0.encoder.01.velocity => thc.encoder-vel
+
+# ######################################################
+# Axis-of-motion Specific Configs (not the GUI)
+# ######################################################
+
+
+
+setp debounce.0.delay 4
+
+# ################
+# X [0] Axis
+# ################
+
+# axis enable chain
+newsig emcmot.00.enable bit
+sets emcmot.00.enable FALSE
+
+net x-home-dbin	debounce.0.0.in  <= hm2_5i25.0.gpio.017.in
+net x-home-dbout	debounce.0.0.out => joint.0.home-sw-in   
+#net x-lim     joint.0.neg-lim-sw-in <= hm2_5i25.0.gpio.032.in
+#net x-lim     joint.0.pos-lim-sw-in <= hm2_5i25.0.gpio.032.in
+
+net emcmot.00.enable <= joint.0.amp-enable-out 
+net emcmot.00.enable => hm2_5i25.0.stepgen.00.enable
+
+
+# position command and feedback
+net emcmot.00.pos-cmd <= joint.0.motor-pos-cmd
+net emcmot.00.pos-cmd => hm2_5i25.0.stepgen.00.position-cmd
+
+net motor.00.pos-fb <= hm2_5i25.0.stepgen.00.position-fb
+net motor.00.pos-fb => joint.0.motor-pos-fb
+
+
+# timing parameters
+setp hm2_5i25.0.stepgen.00.dirsetup        [JOINT_0]DIRSETUP
+setp hm2_5i25.0.stepgen.00.dirhold         [JOINT_0]DIRHOLD
+setp hm2_5i25.0.stepgen.00.steplen         [JOINT_0]STEPLEN
+setp hm2_5i25.0.stepgen.00.stepspace       [JOINT_0]STEPSPACE
+
+setp hm2_5i25.0.stepgen.00.position-scale  [JOINT_0]SCALE
+setp hm2_5i25.0.stepgen.00.maxvel          [JOINT_0]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.00.maxaccel        [JOINT_0]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.00.step_type       0
+
+
+# ################
+# Y [1] Axis
+# ################
+
+# axis enable chain
+newsig emcmot.01.enable bit
+sets emcmot.01.enable FALSE
+
+net emcmot.01.enable <= joint.1.amp-enable-out 
+net emcmot.01.enable => hm2_5i25.0.stepgen.01.enable
+
+#net y1-max-limit    debounce.1.1.in  <= hm2_5i25.0.gpio.
+net y1-home-dbin    debounce.0.1.in  <= hm2_5i25.0.gpio.018.in
+net y1-home-dbout   debounce.0.1.out => joint.1.home-sw-in   
+
+# position command and feedback
+net emcmot.01.pos-cmd <= joint.1.motor-pos-cmd
+net emcmot.01.pos-cmd => hm2_5i25.0.stepgen.01.position-cmd
+
+net motor.01.pos-fb <= hm2_5i25.0.stepgen.01.position-fb
+net motor.01.pos-fb => joint.1.motor-pos-fb
+
+
+# Y axis timing parameters
+setp hm2_5i25.0.stepgen.01.dirsetup        [JOINT_1]DIRSETUP
+setp hm2_5i25.0.stepgen.01.dirhold         [JOINT_1]DIRHOLD
+setp hm2_5i25.0.stepgen.01.steplen         [JOINT_1]STEPLEN
+setp hm2_5i25.0.stepgen.01.stepspace       [JOINT_1]STEPSPACE
+
+setp hm2_5i25.0.stepgen.01.position-scale  [JOINT_1]SCALE
+setp hm2_5i25.0.stepgen.01.maxvel          [JOINT_1]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.01.maxaccel        [JOINT_1]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.01.step_type       0
+
+# ################
+# Y [3] Axis
+# ################
+
+# axis enable chain
+newsig emcmot.03.enable bit
+sets emcmot.03.enable FALSE
+
+net emcmot.03.enable <= joint.3.amp-enable-out 
+net emcmot.03.enable => hm2_5i25.0.stepgen.03.enable
+
+net y2-max-limit	  hm2_5i25.0.gpio.027.in
+net y2-home-dbin    debounce.0.3.in  <= hm2_5i25.0.gpio.025.in
+net y2-home-dbout   debounce.0.3.out => joint.3.home-sw-in   
+
+# position command and feedback
+net emcmot.03.pos-cmd <= joint.3.motor-pos-cmd
+net emcmot.03.pos-cmd => hm2_5i25.0.stepgen.03.position-cmd
+
+net motor.03.pos-fb <= hm2_5i25.0.stepgen.03.position-fb
+net motor.03.pos-fb => joint.3.motor-pos-fb
+
+
+# Y axis timing parameters
+setp hm2_5i25.0.stepgen.03.dirsetup        [JOINT_3]DIRSETUP
+setp hm2_5i25.0.stepgen.03.dirhold         [JOINT_3]DIRHOLD
+setp hm2_5i25.0.stepgen.03.steplen         [JOINT_3]STEPLEN
+setp hm2_5i25.0.stepgen.03.stepspace       [JOINT_3]STEPSPACE
+
+setp hm2_5i25.0.stepgen.03.position-scale  [JOINT_3]SCALE
+setp hm2_5i25.0.stepgen.03.maxvel          [JOINT_3]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.03.maxaccel        [JOINT_3]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.03.step_type       0
+
+# ################
+# Z [2] Axis
+# ################
+
+# axis enable chain
+newsig emcmot.02.enable bit
+sets emcmot.02.enable FALSE
+
+net emcmot.02.enable <= joint.2.amp-enable-out 
+net emcmot.02.enable => hm2_5i25.0.stepgen.02.enable
+
+net z-home-dbin    debounce.0.2.in  <= hm2_5i25.0.gpio.019.in
+net z-home-dbout   debounce.0.2.out => joint.2.home-sw-in   
+#net z-max-lim joint.2.pos-lim-sw-in <= hm2_5i25.0.gpio.032.in
+
+
+# position command and feedback
+#net zpos-cmd 		thcud.z-pos-in <= joint.2.motor-pos-cmd
+#net thc-zpos-cmd 	hm2_5i25.0.stepgen.02.position-cmd <= thcud.z-pos-out
+#net thc-zpos-cmd 	hm2_5i25.0.stepgen.02.position-cmd <= joint.2.motor-pos-cmd
+
+net emcmot.02.pos-cmd thc.z-pos-in <= joint.2.motor-pos-cmd
+net thc-pos-cmd thc.z-pos-out => hm2_5i25.0.stepgen.02.position-cmd
+net motor.02.pos-fb joint.2.motor-pos-fb <= thc.z-fb-out
+
+#net thcud-cur-vel motion.current-vel => thcud.current-vel
+##net thcud-req-vel motion.requested-vel => thcud.requested-vel
+
+#setp thcud.velocity-tol 0.05
+#setp thcud.correction-vel 0.0001
+#setp thcud.requested-vel 40
+
+# timing parameters
+setp hm2_5i25.0.stepgen.02.dirsetup        [JOINT_2]DIRSETUP
+setp hm2_5i25.0.stepgen.02.dirhold         [JOINT_2]DIRHOLD
+setp hm2_5i25.0.stepgen.02.steplen         [JOINT_2]STEPLEN
+setp hm2_5i25.0.stepgen.02.stepspace       [JOINT_2]STEPSPACE
+
+setp hm2_5i25.0.stepgen.02.position-scale  [JOINT_2]SCALE
+setp hm2_5i25.0.stepgen.02.maxvel          [JOINT_2]STEPGEN_MAX_VEL
+setp hm2_5i25.0.stepgen.02.maxaccel        [JOINT_2]STEPGEN_MAX_ACC
+setp hm2_5i25.0.stepgen.02.step_type       0
+
+
+
+# ################
+# G540 Charge pump
+# ################
+
+setp hm2_5i25.0.stepgen.04.dirsetup        100
+setp hm2_5i25.0.stepgen.04.dirhold         100
+setp hm2_5i25.0.stepgen.04.steplen         100
+setp hm2_5i25.0.stepgen.04.stepspace       100
+setp hm2_5i25.0.stepgen.04.position-scale  10000
+setp hm2_5i25.0.stepgen.04.maxvel          0
+setp hm2_5i25.0.stepgen.04.maxaccel        0
+
+# quadrature step mode for square wave out
+setp hm2_5i25.0.stepgen.04.step_type       2
+# velocity mode
+setp hm2_5i25.0.stepgen.04.control-type    1
+# velocity command of 0.25 is 10KHz when scale is 10000 in quadrature mode
+setp hm2_5i25.0.stepgen.04.velocity-cmd    0.25
+# enable charge pump with emcmot.00.enable
+net emcmot.00.enable => hm2_5i25.0.stepgen.04.enable
+
+
+# ##################################################
+# Standard I/O Block - EStop, Etc
+# ##################################################
+
+# create a signal for the estop loopback
+net estop-loop iocontrol.0.user-enable-out => iocontrol.0.emc-enable-in
+
+# create signals for tool loading loopback
+net tool-prep-loop iocontrol.0.tool-prepare => iocontrol.0.tool-prepared
+net tool-change-loop iocontrol.0.tool-change => iocontrol.0.tool-changed
+
